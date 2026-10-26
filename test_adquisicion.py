@@ -9,7 +9,8 @@ from adquisicion import AdquisicionECG
 DURACION = 10
 FS_ESTIMADA = 250
 
-ecg = AdquisicionECG(puerto="COM3", baudrate=115200)
+ecg = AdquisicionECG(puerto="/dev/ttyACM0", baudrate=115200)
+#ecg = AdquisicionECG(puerto="COM3", baudrate=115200)
 
 tiempos = []
 valores = []

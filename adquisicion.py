@@ -4,7 +4,8 @@ import time
 
 
 class AdquisicionECG:
-    def __init__(self, puerto="COM3", baudrate=115200):
+    def __init__(self, puerto="/dev/ttyACM0", baudrate=115200):
+    #def __init__(self, puerto="COM3", baudrate=115200):
         self.puerto = puerto
         self.baudrate = baudrate
         self.ser = None

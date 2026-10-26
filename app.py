@@ -8,6 +8,7 @@ import matplotlib
 import serial
 
 
+from adquisicion import AdquisicionECG
 from scipy import signal, stats
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from tkinter import filedialog, messagebox, ttk
@@ -24,9 +25,18 @@ UPDATE_MS = 100             # Actualizacion de la interfaz (ms)
 SAMPLES_PER_UPDATE = max(1, round(FS * UPDATE_MS / 1000))
 DATA_FOLDER = "data"
 
-SERIAL_PORT = "COM3"
+
+SERIAL_PORT = "/dev/ttyACM0"
 BAUD_RATE = 115200
-ser = None
+
+ecg = AdquisicionECG(
+    puerto=SERIAL_PORT,
+    baudrate=BAUD_RATE
+)
+
+#SERIAL_PORT = "COM3"
+#BAUD_RATE = 115200
+#ser = None
 
 os.makedirs(DATA_FOLDER, exist_ok=True)
 
@@ -661,39 +671,43 @@ def start_acquisition():
     if recording:
         return
 
+    if not ecg.conectar():
+        status_var.set("Error de conexión con la XIAO.")
+        messagebox.showerror(
+            "Error de conexión",
+            f"No se pudo abrir el puerto {SERIAL_PORT}."
+        )
+        return
+
     times = []
     values = []
-
     start_time = time.perf_counter()
     recording = True
-    simulation = True
+    simulation = False
 
-    status_var.set("Adquiriendo señal...")
-    update_plot()
+    status_var.set("Adquiriendo datos reales de la XIAO...")
+    acquire_samples()
 
 
 def acquire_samples():
-    """Genera un bloque de muestras para probar la interfaz."""
-    if not recording or not simulation:
+    if not recording:
         return
 
-    elapsed = time.perf_counter() - start_time
-    first_index = len(values)
+    # Leer un bloque pequeño para mantener la interfaz responsiva.
+    for _ in range(10):
+        if not recording:
+            break
 
-    for i in range(SAMPLES_PER_UPDATE):
-        sample_index = first_index + i
-        t = sample_index / FS
-
-        # Ruido
-        value = generate_sample(t)
-        value += np.random.normal(0, 0.015)
-
-        times.append(t)
-        values.append(value)
+        value = ecg.leer_muestra()
+        if value is not None:
+            elapsed = len(values) / FS
+            times.append(elapsed)
+            values.append(value)
 
     update_plot()
 
-    root.after(UPDATE_MS, acquire_samples)
+    if recording:
+        root.after(5, acquire_samples)
 
 
 def update_plot():
@@ -717,11 +731,20 @@ def update_plot():
 
 def stop_acquisition():
     global recording, simulation
+    global current_time, current_signal, current_fs
+    global current_filename
 
     recording = False
     simulation = False
+    ecg.desconectar()
 
-    status_var.set("Adquisicion detenida.")
+    if times and values:
+        current_time = np.asarray(times, dtype=float)
+        current_signal = np.asarray(values, dtype=float)
+        current_fs = FS
+        current_filename = "Adquisición XIAO"
+
+    status_var.set("Adquisición detenida.")
 
     if values:
         save_signal()
@@ -1061,7 +1084,7 @@ toolbar.pack(fill="x")
 ttk.Button(
     toolbar,
     text="Iniciar prueba",
-    command=lambda: (start_acquisition(), acquire_samples())
+    command=start_acquisition
 ).pack(side="left", padx=4)
 
 ttk.Button(
@@ -1198,6 +1221,7 @@ def close_app():
 
     recording = False
     simulation = False
+    ecg.desconectar()
 
     plt.close("all")
     root.destroy()
