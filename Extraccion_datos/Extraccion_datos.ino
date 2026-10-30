@@ -24,6 +24,6 @@ void loop() {
     int ecgRaw = analogRead(ECG_PIN);
     Serial.println(ecgRaw);
 
-    nextSample += SAMPLE_PERIOD_US;
+    nextSample = now + SAMPLE_PERIOD_US;
   }
 }
